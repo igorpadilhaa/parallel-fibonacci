@@ -56,26 +56,6 @@ func fibWithCacheAndCount(pos uint64, cache []uint64, count []uint64) uint64 {
     return value;
 }
 
-func makeTest() {
-    titles := []string{ "Fib Cached", "Fib jump", "Fib multi" };
-    fn := []func(uint64)uint64{ fibCached, func(pos uint64) uint64 { a, _ := binFibJump(pos); return a } , multiFibJump };
-
-    for i := range titles {
-        fmt.Println("---", titles[i]);
-        cache := make([]uint64, 201);
-
-        start := time.Now();
-        for j := range 201 {
-            cache[j] = fn[i](uint64(j));
-        }
-    
-        for i, c := range cache {
-            fmt.Printf("fib(%d) = %d\n", i, c);
-        } 
-        fmt.Println("Tempo:", time.Now().Sub(start));
-    }
-}
-
 func fibJump(pos uint64) uint64 {
     if pos <= 1 {
         return pos
@@ -211,12 +191,86 @@ func multiFibJump(pos uint64) uint64 {
     return f;
 }
 
+func fibSeq(cache []uint64) {
+    if len(cache) < 2 {
+        return;
+    }
+
+    if (cache[0] == 0 || cache[1] == 0) {
+        cache[0] = 0;
+        cache[1] = 1;
+    }
+
+    for i := 2; i < len(cache); i++ {
+        cache[i] = cache[i - 1] + cache[i - 2];
+    }
+}
+
+func mFibSeq(cache []uint64) {
+    parts := runtime.NumCPU();
+
+    if len(cache) < parts {
+        fibSeq(cache);
+        return;
+    }
+
+    channels := make([]chan bool, parts);
+    for i := range channels {
+        channels[i] = make(chan bool, 10);
+    }
+
+    interval := len(cache) / parts;
+
+    for i := 0; i < parts; i++ {
+        pos := i * interval;
+        f, f0 := binFibJump(uint64(pos));
+
+        slice := cache[pos:pos+interval];
+        slice[1] = f + f0;
+        slice[0] = f;
+
+        go asyncFibSeq(slice, channels[i]);
+    }
+
+    for _, c := range channels {
+        <-c;
+        close(c);
+    }
+
+    if ext := len(cache) % parts; ext != 0 {
+        slice := cache[parts*interval-2:];
+        fibSeq(slice);
+    }
+}
+
+func asyncFibSeq(cache []uint64, ended chan bool) {
+    fibSeq(cache);
+    ended <- true;
+}
 
 func asyncFib(pos uint64, out chan FibResult) {
     k, k0 := binFibJump(pos)
     out <- FibResult{k, k0};
 }
 
+func makeTest() {
+    titles := []string{ "Fib seq", "Fib multi seq" };
+    fn := []func([]uint64){ fibSeq, mFibSeq };
+
+    for i := range titles {
+        fmt.Println("---", titles[i]);
+        cache := make([]uint64, 100);
+
+        start := time.Now();
+        fn[i](cache);
+        end := time.Now().Sub(start);
+
+        for i, c := range cache {
+            fmt.Printf("fib(%d) = %d\n", i, c);
+        }
+        fmt.Println("Time:", end);
+    }
+}
 
 func main() {
     makeTest();
