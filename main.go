@@ -247,9 +247,11 @@ func makeTest() {
     titles := []string{ "Fib seq", "Fib multi seq" };
     fn := []func([]*big.Int){ fibSeq, mFibSeq };
 
+    times := make([]time.Duration, len(titles));
+    
     for i := range titles {
         fmt.Println("---", titles[i]);
-        cache := make([]*big.Int, 100);
+        cache := make([]*big.Int, 5000);
 
         start := time.Now();
         fn[i](cache);
@@ -258,7 +260,12 @@ func makeTest() {
         for i, c := range cache {
             fmt.Printf("fib(%d) = %d\n", i, c);
         }
-        fmt.Println("Time:", end);
+        times[i] = end;
+    }
+    
+    fmt.Println("Times: ");
+    for i, t := range times {
+        fmt.Printf("%s: %s\n", titles[i], t);
     }
 }
 
